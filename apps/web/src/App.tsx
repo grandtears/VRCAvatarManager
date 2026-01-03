@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
-type State = "idle" | "2fa_required" | "logged_in";
+type State = "boot" | "idle" | "2fa_required" | "logged_in";
 type TwoFAMethod = "totp" | "emailOtp";
 
 type Avatar = {
@@ -57,7 +57,7 @@ function saveAvatarBaseMap(map: AvatarBaseMap) {
 }
 
 export default function App() {
-  const [state, setState] = useState<State>("idle");
+  const [state, setState] = useState<State>("boot");
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -79,7 +79,6 @@ export default function App() {
 
   const [totalAvatars, setTotalAvatars] = useState<number | null>(null);
 
-
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"list" | "search">("list");
 
@@ -95,6 +94,22 @@ export default function App() {
     loadAvatarBaseMap()
   );
 
+  // 素体フィルタ（"" = すべて, "__none__" = 未割り当て）
+  const [filterBaseId, setFilterBaseId] = useState<string>("");
+
+  const shownAvatars = mode === "search" ? searchResults : avatars;
+  const shownHasMore = mode === "search" ? searchHasMore : hasMore;
+
+  const filteredAvatars = useMemo(() => {
+    if (!filterBaseId) return shownAvatars;
+
+    if (filterBaseId === "__none__") {
+      return shownAvatars.filter((a) => !avatarBaseMap[a.id]);
+    }
+
+    return shownAvatars.filter((a) => avatarBaseMap[a.id] === filterBaseId);
+  }, [shownAvatars, filterBaseId, avatarBaseMap]);
+
   async function doLogin() {
     setError("");
     setAvatars([]);
@@ -105,7 +120,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
       });
 
       const j = await r.json().catch(() => null);
@@ -138,7 +153,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ method, code })
+        body: JSON.stringify({ method, code }),
       });
 
       const j = await r.json().catch(() => null);
@@ -232,8 +247,43 @@ export default function App() {
     }
   }
 
+  /* アバター変更関数 */
+  async function selectAvatar(avatarId: string) {
+    setError("");
 
+    try {
+      const r = await fetch(`${API}/avatars/${avatarId}/select`, {
+        method: "POST",
+        credentials: "include",
+      });
 
+      const j = await r.json().catch(() => null);
+      if (!j?.ok) {
+        setError(`アバター変更に失敗（status=${j?.status ?? r.status}）`);
+        return;
+      }
+    } catch {
+      setError("アバター変更APIに接続できません");
+    }
+  }
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`${API}/auth/me`, { credentials: "include" });
+        const j = await r.json().catch(() => null);
+
+        if (j?.ok) {
+          setDisplayName(j.displayName || "");
+          setState("logged_in");
+        } else {
+          setState("idle");
+        }
+      } catch {
+        setState("idle");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (state === "logged_in") {
       setOffset(0);
@@ -252,19 +302,40 @@ export default function App() {
     saveAvatarBaseMap(avatarBaseMap);
   }, [avatarBaseMap]);
 
+  useEffect(() => {
+    const base = bodyBases.find((b) => b.id === filterBaseId);
+    console.log("filterBaseId:", filterBaseId, "name:", base?.name);
+
+    const hits = avatars.filter((a) => avatarBaseMap[a.id] === filterBaseId).length;
+    console.log("hits in list:", hits);
+  }, [filterBaseId, bodyBases, avatars, avatarBaseMap]);
+
   return (
     <div style={{ padding: 16, fontFamily: "system-ui" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <h1>VRChat Avatar Viewer</h1>
         <button onClick={() => setShowSettings(true)}>⚙ 設定</button>
       </div>
 
       {error && (
-        <div style={{ padding: 12, marginBottom: 12, border: "1px solid #f99", background: "#fee" }}>
+        <div
+          style={{
+            padding: 12,
+            marginBottom: 12,
+            border: "1px solid #f99",
+            background: "#fee",
+          }}
+        >
           {error}
         </div>
       )}
-
+      {state === "boot" && <div style={{ opacity: 0.7 }}>起動中…</div>}
       {state === "idle" && (
         <div style={{ maxWidth: 420, display: "grid", gap: 8 }}>
           <h2>ログイン</h2>
@@ -289,13 +360,24 @@ export default function App() {
 
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span>方式:</span>
-            <select value={method} onChange={(e) => setMethod(e.target.value as TwoFAMethod)}>
-              <option value="totp" disabled={!canPickTotp}>Authenticator (TOTP)</option>
-              <option value="emailOtp" disabled={!canPickEmail}>Email OTP</option>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value as TwoFAMethod)}
+            >
+              <option value="totp" disabled={!canPickTotp}>
+                Authenticator (TOTP)
+              </option>
+              <option value="emailOtp" disabled={!canPickEmail}>
+                Email OTP
+              </option>
             </select>
           </div>
 
-          <input placeholder="6桁コード" value={code} onChange={(e) => setCode(e.target.value)} />
+          <input
+            placeholder="6桁コード"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
           <button onClick={do2fa}>送信</button>
         </div>
       )}
@@ -328,7 +410,14 @@ export default function App() {
           </div>
 
           {/* 検索UI */}
-          <div style={{ marginBottom: 12, display: "flex", gap: 8, alignItems: "center" }}>
+          <div
+            style={{
+              marginBottom: 12,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
             <input
               placeholder="全アバターから名前検索"
               value={query}
@@ -362,78 +451,153 @@ export default function App() {
             </div>
           )}
 
-          {/* 表示対象の切り替え */}
-          {(() => {
-            const shownAvatars = mode === "search" ? searchResults : avatars;
-            const shownHasMore = mode === "search" ? searchHasMore : hasMore;
+          {/* 素体フィルタ */}
+          <div
+            style={{
+              marginBottom: 12,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+            }}
+          >
+            <span>素体フィルタ:</span>
 
-            return (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-                  {shownAvatars.map((a) => (
-                    <div key={a.id} style={{ border: "1px solid #ddd", padding: 8 }}>
-                      <img
-                        src={a.thumbnail}
-                        style={{ width: "100%", borderRadius: 6 }}
-                        loading="lazy"
-                      />
+            <select
+              value={filterBaseId}
+              onChange={(e) => setFilterBaseId(e.target.value)}
+            >
+              <option value="">すべて</option>
+              <option value="__none__">未割り当て</option>
+              {bodyBases.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
 
-                      <div style={{ marginTop: 6, fontWeight: 600 }}>{a.name}</div>
-                      <small>{a.platform}</small>
+            {filterBaseId && (
+              <button onClick={() => setFilterBaseId("")}>解除</button>
+            )}
+          </div>
 
-                      {/* 素体割り当て UI */}
-                      <div style={{ marginTop: 8 }}>
-                        <select
-                          value={avatarBaseMap[a.id] ?? ""}
-                          onChange={(e) => {
-                            const baseId = e.target.value;
+          {/* 一覧（IIFEを廃止して通常描画に） */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, 1fr)",
+              gap: 12,
+            }}
+          >
+            {filteredAvatars.map((a) => (
+              <div key={a.id} style={{ border: "1px solid #ddd", padding: 8 }}>
+                <img
+                  src={a.thumbnail}
+                  style={{ width: "100%", borderRadius: 6 }}
+                  loading="lazy"
+                />
 
-                            setAvatarBaseMap((prev) => {
-                              const next = { ...prev };
-                              if (baseId) {
-                                next[a.id] = baseId;
-                              } else {
-                                delete next[a.id];
-                              }
-                              return next;
-                            });
-                          }}
-                          style={{ width: "100%" }}
-                        >
-                          <option value="">（素体なし）</option>
-                          {bodyBases.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                <div style={{ marginTop: 6, fontWeight: 600 }}>{a.name}</div>
+                <small>{a.platform}</small>
 
-                      {/* 現在の割り当て表示（任意だけどおすすめ） */}
-                      {avatarBaseMap[a.id] && (
-                        <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
-                          素体:{" "}
-                          {bodyBases.find((b) => b.id === avatarBaseMap[a.id])?.name ?? "（不明）"}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                <button
+                  onClick={() =>
+                    window.open(
+                      `https://vrchat.com/home/avatar/${a.id}`,
+                      "_blank",
+                      "noopener,noreferrer"
+                    )
+                  }
+                  style={{
+                    marginTop: 6,
+                    width: "100%",
+                    background: "#1e88e5",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 4,
+                    padding: "6px 8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  🔗 VRChatで開く
+                </button>
+                <button
+                  onClick={() => selectAvatar(a.id)}
+                  style={{
+                    marginTop: 6,
+                    width: "100%",
+                    background: "#2e7d32",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 4,
+                    padding: "6px 8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  ✅ このアバターに変更
+                </button>
+
+                {/* 素体割り当て UI */}
+                <div style={{ marginTop: 8 }}>
+                  <select
+                    value={avatarBaseMap[a.id] ?? ""}
+                    onChange={(e) => {
+                      const baseId = e.target.value;
+
+                      setAvatarBaseMap((prev) => {
+                        const next = { ...prev };
+                        if (baseId) {
+                          next[a.id] = baseId;
+                        } else {
+                          delete next[a.id];
+                        }
+                        return next;
+                      });
+                    }}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">（素体なし）</option>
+                    {bodyBases.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {shownHasMore && (
-                  <div style={{ marginTop: 16 }}>
-                    <button onClick={() => (mode === "search" ? searchAvatars(false) : loadAvatars(false))}>
-                      もっと読む
-                    </button>
+                {/* 現在の割り当て表示 */}
+                {avatarBaseMap[a.id] && (
+                  <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
+                    素体:{" "}
+                    {bodyBases.find((b) => b.id === avatarBaseMap[a.id])?.name ??
+                      "（不明）"}
                   </div>
                 )}
-              </>
-            );
-          })()}
+              </div>
+            ))}
+          </div>
+
+          {shownHasMore && (
+            <div style={{ marginTop: 16 }}>
+              <button
+                onClick={() =>
+                  mode === "search" ? searchAvatars(false) : loadAvatars(false)
+                }
+              >
+                もっと読む
+              </button>
+            </div>
+          )}
         </div>
       )}
+
       {/* 設定モーダル */}
-      {showSettings && (<SettingsModal bodyBases={bodyBases} setBodyBases={setBodyBases} onClose={() => setShowSettings(false)} />)}
+      {showSettings && (
+        <SettingsModal
+          bodyBases={bodyBases}
+          setBodyBases={setBodyBases}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </div>
   );
 
@@ -453,17 +617,22 @@ export default function App() {
       const name = input.trim();
       if (!name) return;
 
-      setBodyBases(prev => [
-        ...prev,
-        { id: uid(), name }
-      ]);
+      setBodyBases((prev) => [...prev, { id: uid(), name }]);
       setInput("");
     }
 
     function remove(id: string) {
-      setBodyBases(prev => prev.filter(b => b.id !== id));
-    }
+      setBodyBases((prev) => prev.filter((b) => b.id !== id));
 
+      // これが重要：その素体IDを参照してるアバター割り当ても消す
+      setAvatarBaseMap((prev) => {
+        const next: AvatarBaseMap = { ...prev };
+        for (const aid of Object.keys(next)) {
+          if (next[aid] === id) delete next[aid];
+        }
+        return next;
+      });
+    }
     return (
       <div style={overlayStyle}>
         <div style={modalStyle}>
@@ -486,7 +655,7 @@ export default function App() {
 
           {/* 一覧 */}
           <div style={{ display: "grid", gap: 6 }}>
-            {bodyBases.map(b => (
+            {bodyBases.map((b) => (
               <div
                 key={b.id}
                 style={{
@@ -494,7 +663,7 @@ export default function App() {
                   justifyContent: "space-between",
                   border: "1px solid #ddd",
                   padding: 8,
-                  borderRadius: 6
+                  borderRadius: 6,
                 }}
               >
                 <span>{b.name}</span>

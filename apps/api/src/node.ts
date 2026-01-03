@@ -10,10 +10,18 @@ import {
     vrcLogin,
     vrcVerify2FA,
     vrcCountMyAvatars,
+    vrcGetMe,
+    vrcSelectAvatar,
     type TwoFAMethod
 } from "./vrc.ts";
 
-const app = new Hono();
+type Env = {
+    Variables: {
+        sid: string;
+    };
+};
+
+const app = new Hono<Env>();
 
 // CORS（Viteから叩く）
 app.use(
@@ -28,28 +36,36 @@ app.use(
 app.get("/health", (c) => c.json({ ok: true }));
 
 // sid cookie（サーバ側セッション）
+const SID_TTL_SEC = 60 * 60 * 24 * 30; // 30日
 app.use("*", async (c, next) => {
-    let sid = getCookie(c, "sid");
+    const incoming = getCookie(c, "sid");
+    console.log("[API] incoming sid =", incoming, "hasSession?", incoming ? hasSession(incoming) : "(no)");
 
+    let sid = incoming;
     if (!sid || !hasSession(sid)) {
         sid = createSession();
+        console.log("[API] created new sid =", sid);
+
         setCookie(c, "sid", sid, {
             httpOnly: true,
             sameSite: "Lax",
-            path: "/"
+            path: "/",
+            maxAge: 60 * 60 * 24 * 30,
         });
     }
+
+    c.set("sid", sid);
     await next();
 });
 
 /** ログイン **/
 app.post("/auth/login", async (c) => {
     const { username, password } = await c.req.json<{ username: string; password: string }>();
-    const sid = getCookie(c, "sid")!;
+    const sid = c.get("sid");
 
     const r = await vrcLogin(sid, username, password);
 
-    if (!r.ok) return c.json({ ok: false, status: r.status, body: r.body }, 401);
+    if (!r.ok) return c.json({ ok: false, status: r.status, body: r.body }, { status: 401 as const });
 
     if (r.state === "2fa_required") {
         return c.json({ ok: true, state: "2fa_required", methods: r.methods });
@@ -61,11 +77,10 @@ app.post("/auth/login", async (c) => {
         displayName: (r.user as any)?.displayName ?? ""
     });
 });
-
 /** 2FA **/
 app.post("/auth/2fa", async (c) => {
     const { method, code } = await c.req.json<{ method: TwoFAMethod; code: string }>();
-    const sid = getCookie(c, "sid")!;
+    const sid = c.get("sid");
 
     const r = await vrcVerify2FA(sid, method, code);
 
@@ -80,7 +95,7 @@ app.post("/auth/2fa", async (c) => {
 
 /** アバターを返却するエンドポイント **/
 app.get("/avatars", async (c) => {
-    const sid = getCookie(c, "sid")!;
+    const sid = c.get("sid");
 
     const n = Number(c.req.query("n") ?? "50");         // 1回に取る件数
     const offset = Number(c.req.query("offset") ?? "0"); // 何件目から
@@ -113,50 +128,50 @@ app.get("/avatars", async (c) => {
 
 let cachedTotal: number | null = null;
 
-/* トータルを返却するエンドポイント */
-app.get("/avatars", async (c) => {
-    const sid = getCookie(c, "sid")!;
+// /* トータルを返却するエンドポイント */
+// app.get("/avatars", async (c) => {
+//     const sid = getCookie(c, "sid")!;
 
-    const n = Number(c.req.query("n") ?? "50");
-    const offset = Number(c.req.query("offset") ?? "0");
-    const safeN = Number.isFinite(n) ? Math.min(Math.max(n, 1), 100) : 50;
-    const safeOffset = Number.isFinite(offset) ? Math.max(offset, 0) : 0;
+//     const n = Number(c.req.query("n") ?? "50");
+//     const offset = Number(c.req.query("offset") ?? "0");
+//     const safeN = Number.isFinite(n) ? Math.min(Math.max(n, 1), 100) : 50;
+//     const safeOffset = Number.isFinite(offset) ? Math.max(offset, 0) : 0;
 
-    try {
-        // 初回だけ総数を数える
-        if (cachedTotal === null) {
-            const cr = await vrcCountMyAvatars(sid);
-            if (!cr.ok) return c.json({ ok: false, status: cr.status, body: cr.body }, 401);
-            cachedTotal = cr.total;
-        }
+//     try {
+//         // 初回だけ総数を数える
+//         if (cachedTotal === null) {
+//             const cr = await vrcCountMyAvatars(sid);
+//             if (!cr.ok) return c.json({ ok: false, status: cr.status, body: cr.body }, 401);
+//             cachedTotal = cr.total;
+//         }
 
-        const r = await vrcGetMyAvatars(sid, safeN, safeOffset);
-        if (!r.ok) return c.json({ ok: false, status: r.status, body: r.body }, 401);
+//         const r = await vrcGetMyAvatars(sid, safeN, safeOffset);
+//         if (!r.ok) return c.json({ ok: false, status: r.status, body: r.body }, 401);
 
-        const avatars = (r.avatars ?? []).map((a: any) => ({
-            id: a.id,
-            name: a.name,
-            thumbnail: a.thumbnailImageUrl,
-            platform: a.platform,
-            updatedAt: a.updated_at,
-        }));
+//         const avatars = (r.avatars ?? []).map((a: any) => ({
+//             id: a.id,
+//             name: a.name,
+//             thumbnail: a.thumbnailImageUrl,
+//             platform: a.platform,
+//             updatedAt: a.updated_at,
+//         }));
 
-        return c.json({
-            ok: true,
-            avatars,
-            total: cachedTotal,
-            hasMore: safeOffset + avatars.length < cachedTotal,
-            offset: safeOffset,
-            n: safeN,
-        });
-    } catch {
-        return c.json({ ok: false, error: "AVATARS_FAILED" }, 500);
-    }
-});
+//         return c.json({
+//             ok: true,
+//             avatars,
+//             total: cachedTotal,
+//             hasMore: safeOffset + avatars.length < cachedTotal,
+//             offset: safeOffset,
+//             n: safeN,
+//         });
+//     } catch {
+//         return c.json({ ok: false, error: "AVATARS_FAILED" }, 500);
+//     }
+// });
 
 /**アバター検索のエンドポイント */
 app.get("/avatars/search", async (c) => {
-    const sid = getCookie(c, "sid")!;
+    const sid = c.get("sid");
 
     const qRaw = (c.req.query("q") ?? "").trim();
     const q = qRaw.toLowerCase();
@@ -200,8 +215,6 @@ app.get("/avatars/search", async (c) => {
                 }
             }
 
-            // もう返す分が埋まってて、かつ「hasMore判定」に必要な最低限は満たしたら途中終了してもOK
-            // ただし totalMatches を正確に出したいので、今回は最後まで回す（正確版）
             if (items.length < pageSize) break;
 
             pageOffset += pageSize;
@@ -229,6 +242,33 @@ app.get("/avatars/search", async (c) => {
     } catch (e) {
         return c.json({ ok: false, error: "SEARCH_FAILED" }, 500);
     }
+});
+
+/* アバター変更のエンドポイント */
+app.post("/avatars/:id/select", async (c) => {
+    const sid = c.get("sid");
+    const avatarId = c.req.param("id");
+
+    const r = await vrcSelectAvatar(sid, avatarId);
+
+    if (!r.ok) {
+        return c.json({ ok: false, status: r.status, body: r.body }, { status: 401 as const });
+    }
+
+    return c.json({ ok: true });
+});
+
+/* ログイン済みか？ */
+app.get("/auth/me", async (c) => {
+    const sid = c.get("sid");
+    const r = await vrcGetMe(sid);
+
+    if (!r.ok) return c.json({ ok: false }, 401);
+
+    return c.json({
+        ok: true,
+        displayName: (r.user as any)?.displayName ?? "",
+    });
 });
 
 // 大事
