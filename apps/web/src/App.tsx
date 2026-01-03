@@ -624,7 +624,6 @@ export default function App() {
     function remove(id: string) {
       setBodyBases((prev) => prev.filter((b) => b.id !== id));
 
-      // これが重要：その素体IDを参照してるアバター割り当ても消す
       setAvatarBaseMap((prev) => {
         const next: AvatarBaseMap = { ...prev };
         for (const aid of Object.keys(next)) {
