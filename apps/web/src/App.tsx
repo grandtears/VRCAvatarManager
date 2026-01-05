@@ -537,16 +537,7 @@ export default function App() {
     return (
       <button
         onClick={onClick}
-        style={{
-          textAlign: "left",
-          width: "100%",
-          padding: "8px 10px",
-          borderRadius: 8,
-          border: "1px solid #ddd",
-          background: active ? "#e8f0fe" : "#fff",
-          cursor: "pointer",
-          fontWeight: active ? 700 : 500,
-        }}
+        className={`sidebar-item ${active ? "active" : ""}`}
       >
         {label}
       </button>
@@ -617,36 +608,21 @@ export default function App() {
   }, [filterBaseId, bodyBases, avatars, avatarBaseMap]);
 
   return (
-    <div style={{ padding: 16, fontFamily: "system-ui" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 8,
-        }}
-      >
-        <h1>VRC Avatar Manager</h1>
+    <div>
+      <header className="app-header">
+        <h1 className="app-title">VRC Avatar Manager</h1>
         <div style={{ display: "flex", gap: 8 }}>
           {state === "logged_in" && (
             <button
               onClick={doLogout}
-              style={{
-                background: "#c62828",
-                color: "#fff",
-                border: "none",
-                borderRadius: 4,
-                padding: "6px 10px",
-                cursor: "pointer",
-              }}
+              className="btn btn-danger btn-sm"
             >
               🚪 ログアウト
             </button>
           )}
-          <button onClick={() => setShowSettings(true)}>⚙ 設定</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowSettings(true)}>⚙ 設定</button>
         </div>
-      </div>
+      </header>
 
       {error && (
         <div
@@ -696,187 +672,60 @@ export default function App() {
       )}
 
       {state === "2fa_required" && (
-        <div style={{ maxWidth: 480, display: "grid", gap: 8 }}>
-          <h2>2段階認証</h2>
+        <div className="login-container">
+          <div className="login-card">
+            <h2 className="login-title">2段階認証</h2>
+            <div style={{ color: "#555", marginBottom: 16 }}>
+              認証コードを入力してください。
+            </div>
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span>方式:</span>
-            <select
-              value={method}
-              onChange={(e) => setMethod(e.target.value as TwoFAMethod)}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <span style={{ fontWeight: 600, color: "#666" }}>方式:</span>
+              <select
+                className="modern-select"
+                style={{ flex: 1, padding: "10px" }}
+                value={method}
+                onChange={(e) => setMethod(e.target.value as TwoFAMethod)}
+              >
+                <option value="totp" disabled={!canPickTotp}>
+                  Authenticator (TOTP)
+                </option>
+                <option value="emailOtp" disabled={!canPickEmail}>
+                  Email OTP
+                </option>
+              </select>
+            </div>
+
+            <input
+              className="login-input"
+              placeholder="6桁コード"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") do2fa();
+              }}
+            />
+
+            <button
+              className="login-button"
+              style={{ marginTop: 16 }}
+              onClick={do2fa}
             >
-              <option value="totp" disabled={!canPickTotp}>
-                Authenticator (TOTP)
-              </option>
-              <option value="emailOtp" disabled={!canPickEmail}>
-                Email OTP
-              </option>
-            </select>
+              送信
+            </button>
           </div>
-
-          <input placeholder="6桁コード" value={code} onChange={(e) => setCode(e.target.value)} />
-          <button onClick={do2fa}>送信</button>
         </div>
       )}
 
       {state === "logged_in" && (
         <div>
-          {/* 上部ステータス */}
-          <div style={{ marginBottom: 12 }}>
-            Logged in as <b>{displayName || "(unknown)"}</b>
-            {totalAvatars !== null && (
-              <span style={{ marginLeft: 12 }}>（全 {totalAvatars} アバター）</span>
-            )}
-            <button
-              style={{ marginLeft: 12 }}
-              onClick={() => {
-                setMode("list");
-                setQuery("");
-                setSearchResults([]);
-                setSearchTotal(null);
-                setSearchOffset(0);
-                setSearchHasMore(false);
 
-                setOffset(0);
-                loadAvatars(true);
-              }}
-            >
-              再読み込み
-            </button>
-          </div>
-
-          {/* ソートUI */}
-          <div style={{ marginBottom: 12, display: "flex", gap: 12, alignItems: "center" }}>
-            {totalAvatars !== null && (
-              <span style={{ marginRight: 12, fontWeight: "bold" }}>全 {totalAvatars} 体</span>
-            )}
-            <label>
-              ソート:
-              <select className="modern-select" style={{ marginLeft: 4 }} value={sort} onChange={(e) => setSort(e.target.value)}>
-                <option value="updated">更新日時</option>
-                <option value="created">作成日時</option>
-                <option value="name">名前</option>
-              </select>
-            </label>
-            <label>
-              順序:
-              <select className="modern-select" style={{ marginLeft: 4 }} value={order} onChange={(e) => setOrder(e.target.value)}>
-                <option value="descending">降順 (新しい/Z-A)</option>
-                <option value="ascending">昇順 (古い/A-Z)</option>
-              </select>
-            </label>
-          </div>
-
-          {/* 検索UI */}
-          <div
-            style={{
-              marginBottom: 12,
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-            }}
-          >
-            <input
-              placeholder="全アバターから名前検索"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              style={{ flex: 1, padding: 8 }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") searchAvatars(true);
-              }}
-            />
-            <button onClick={() => searchAvatars(true)}>検索</button>
-
-            {mode === "search" && (
-              <button
-                onClick={() => {
-                  setMode("list");
-                  setSearchResults([]);
-                  setSearchTotal(null);
-                  setSearchOffset(0);
-                  setSearchHasMore(false);
-                }}
-              >
-                一覧に戻る
-              </button>
-            )}
-          </div>
-
-          {/* 検索時の件数表示 */}
-          {mode === "search" && (
-            <div style={{ marginBottom: 8 }}>
-              検索結果: <b>{searchTotal ?? "…"}</b> 件
-            </div>
-          )}
-
-          {/* 素体フィルタ */}
-          <div
-            style={{
-              marginBottom: 12,
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-            }}
-          >
-            <span>素体フィルタ:</span>
-
-            <select
-              className="modern-select"
-              value={filterBaseId}
-              onChange={(e) => setFilterBaseId(e.target.value)}
-            >
-              <option value="">すべて</option>
-              <option value="__none__">未割り当て</option>
-              {bodyBases.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-
-            {filterBaseId && (
-              <button onClick={() => setFilterBaseId("")}>解除</button>
-            )}
-
-            {/* モバイル対応フィルタ */}
-            <label style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <input
-                type="checkbox"
-                checked={onlyMobile}
-                onChange={(e) => setOnlyMobile(e.target.checked)}
-              />
-              Quest / Mobile 対応のみ
-            </label>
-          </div>
-
-          {/* 左サイドバー (まとめて1カラム) */}
           <div className="main-layout">
-            <div
-              style={{
-                width: 250,
-                flexShrink: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-              }}
-            >
+            <aside className="app-sidebar">
               {/* 素体カテゴリ */}
-              <aside
-                style={{
-                  border: "1px solid #ddd",
-                  borderRadius: 8,
-                  padding: 10,
-                }}
-              >
+              <div className="sidebar-section">
                 <div
-                  style={{
-                    fontWeight: 700,
-                    marginBottom: isBodyExpanded ? 10 : 0,
-                    cursor: "pointer",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
+                  className="sidebar-title"
                   onClick={() => setIsBodyExpanded(!isBodyExpanded)}
                 >
                   素体カテゴリ
@@ -884,7 +733,7 @@ export default function App() {
                 </div>
 
                 {isBodyExpanded && (
-                  <div style={{ display: "grid", gap: 6 }}>
+                  <div>
                     <BaseItem
                       active={filterBaseId === ""}
                       label={`すべて (${baseCounts.all})`}
@@ -895,7 +744,7 @@ export default function App() {
                       label={`未割り当て (${baseCounts.none})`}
                       onClick={() => setFilterBaseId("__none__")}
                     />
-                    <div style={{ height: 1, background: "#eee", margin: "6px 0" }} />
+                    <div style={{ height: 1, background: "#e2e8f0", margin: "6px 0" }} />
 
                     {bodyBases.map((b) => (
                       <BaseItem
@@ -907,25 +756,12 @@ export default function App() {
                     ))}
                   </div>
                 )}
-              </aside>
+              </div>
 
               {/* お気に入りカテゴリ */}
-              <aside
-                style={{
-                  border: "1px solid #ddd",
-                  borderRadius: 8,
-                  padding: 10,
-                }}
-              >
+              <div className="sidebar-section">
                 <div
-                  style={{
-                    fontWeight: 700,
-                    marginBottom: isFavExpanded ? 10 : 0,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    cursor: "pointer",
-                  }}
+                  className="sidebar-title"
                   onClick={() => setIsFavExpanded(!isFavExpanded)}
                 >
                   <span>
@@ -940,29 +776,33 @@ export default function App() {
                         setIsFavExpanded(true);
                       }
                     }}
-                    style={{ fontSize: 11, padding: "2px 6px" }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: "0px 6px", height: "auto" }}
                   >
                     ＋
                   </button>
                 </div>
 
                 {isFavExpanded && (
-                  <div style={{ display: "grid", gap: 6 }}>
+                  <div>
                     <BaseItem
                       active={filterFavId === "__none__"}
                       label={`未分類 (${favCounts.none})`}
                       onClick={() => setFilterFavId(filterFavId === "__none__" ? "" : "__none__")}
                     />
-                    <div style={{ height: 1, background: "#eee", margin: "6px 0" }} />
+                    <div style={{ height: 1, background: "#e2e8f0", margin: "6px 0" }} />
 
                     {favFolders.map((f) => (
-                      <div key={f.id} style={{ display: "flex", gap: 4 }}>
-                        <BaseItem
-                          active={filterFavId === f.id}
-                          label={`${f.name} (${favCounts.byId[f.id] ?? 0})`}
-                          onClick={() => setFilterFavId(filterFavId === f.id ? "" : f.id)}
-                        />
+                      <div key={f.id} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        <div style={{ flex: 1 }}>
+                          <BaseItem
+                            active={filterFavId === f.id}
+                            label={`${f.name} (${favCounts.byId[f.id] ?? 0})`}
+                            onClick={() => setFilterFavId(filterFavId === f.id ? "" : f.id)}
+                          />
+                        </div>
                         <button
+                          className="tag-delete-btn"
                           onClick={() => {
                             if (!confirm(`フォルダ「${f.name}」を削除しますか？`)) return;
                             setFavFolders((prev) => prev.filter((x) => x.id !== f.id));
@@ -975,7 +815,7 @@ export default function App() {
                             });
                             if (filterFavId === f.id) setFilterFavId("");
                           }}
-                          style={{ fontSize: 10, padding: 4 }}
+                          style={{ fontSize: 16, width: 20, height: 20 }}
                         >
                           ×
                         </button>
@@ -983,176 +823,254 @@ export default function App() {
                     ))}
                   </div>
                 )}
-              </aside>
-            </div>
+              </div>
+            </aside>
 
             {/* 右：一覧 */}
-            <main style={{ flex: 1, minWidth: "300px" }}>
+            <main style={{ flex: 1, minWidth: 0 }}>
+              {/* Row 0: ログイン情報 */}
+              <div style={{ marginBottom: 16 }}>
+                Logged in as <b>{displayName || "(unknown)"}</b>
+              </div>
+
+              {/* Row 1: 全N体 + ソート + 順序 */}
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, marginBottom: 12 }}>
+                {totalAvatars !== null && (
+                  <span style={{ fontSize: "1.1rem", fontWeight: "bold", color: "#333", marginRight: 8 }}>
+                    全 {totalAvatars} 体
+                  </span>
+                )}
+
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <label style={{ fontSize: "0.95rem" }}>ソート:</label>
+                  <select className="modern-select" value={sort} onChange={(e) => setSort(e.target.value)}>
+                    <option value="updated">更新日時</option>
+                    <option value="created">作成日時</option>
+                    <option value="name">名前</option>
+                  </select>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <label style={{ fontSize: "0.95rem" }}>順序:</label>
+                  <select className="modern-select" value={order} onChange={(e) => setOrder(e.target.value)}>
+                    <option value="descending">降順 (新しい/Z-A)</option>
+                    <option value="ascending">昇順 (古い/A-Z)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: 検索バー */}
+              <div style={{ marginBottom: 12 }}>
+                <input
+                  className="search-input"
+                  placeholder="全アバターから名前検索"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") searchAvatars(true);
+                  }}
+                  style={{ width: "100%", boxSizing: "border-box" }}
+                />
+                {mode === "search" && (
+                  <div style={{ marginTop: 4, display: "flex", gap: 8, alignItems: "center" }}>
+                    <span>検索結果: <b>{searchTotal ?? "…"}</b> 件</span>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setMode("list");
+                        setSearchResults([]);
+                        setSearchTotal(null);
+                        setSearchOffset(0);
+                        setSearchHasMore(false);
+                      }}
+                    >
+                      一覧に戻る
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Row 3: 素体フィルタ + Quest/Mobile Checkbox */}
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, marginBottom: 20 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <label style={{ fontSize: "0.95rem" }}>素体フィルタ:</label>
+                  <select
+                    className="modern-select"
+                    value={filterBaseId}
+                    onChange={(e) => setFilterBaseId(e.target.value)}
+                  >
+                    <option value="">すべて</option>
+                    <option value="__none__">未割り当て</option>
+                    {bodyBases.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: "0.95rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={onlyMobile}
+                    onChange={(e) => setOnlyMobile(e.target.checked)}
+                  />
+                  Quest / Mobile 対応のみ
+                </label>
+              </div>
               <div className="avatar-grid">
                 {filteredAvatars.map((a) => (
-                  <div key={a.id} style={{ border: "1px solid #ddd", padding: 8 }}>
-                    <img
-                      src={a.thumbnail}
-                      style={{ width: "100%", borderRadius: 6 }}
-                      loading="lazy"
-                    />
-
-                    <div style={{ marginTop: 6, fontWeight: 600 }}>{a.name}</div>
-
-                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
-                      <div>
-                        対応: <b>{(a.platforms ?? []).join(", ") || "-"}</b>
-                      </div>
-                      <div>作成: {a.createdAt ? new Date(a.createdAt).toLocaleString() : "-"}</div>
-                      <div>更新: {a.updatedAt ? new Date(a.updatedAt).toLocaleString() : "-"}</div>
+                  <div key={a.id} className="avatar-card">
+                    <div className="avatar-thumb-container">
+                      <img
+                        src={a.thumbnail}
+                        className="avatar-thumb"
+                        loading="lazy"
+                        alt={a.name}
+                      />
                     </div>
 
-                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
-                      <div>🖥 {rankBadge(getPerfRank(a.performance, "standalonewindows"))}</div>
-                      <div>📱 {rankBadge(getPerfRank(a.performance, "android"))}</div>
-                    </div>
+                    <div className="card-content">
+                      <div className="avatar-name">{a.name}</div>
 
-                    <button
-                      onClick={() =>
-                        window.open(`https://vrchat.com/home/avatar/${a.id}`, "_blank", "noopener,noreferrer")
-                      }
-                      style={{
-                        marginTop: 6,
-                        width: "100%",
-                        background: "#1e88e5",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 4,
-                        padding: "6px 8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      🔗 VRChatで開く
-                    </button>
-
-                    <button
-                      onClick={() => selectAvatar(a.id)}
-                      style={{
-                        marginTop: 6,
-                        width: "100%",
-                        background: "#2e7d32",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 4,
-                        padding: "6px 8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      ✅ このアバターに変更
-                    </button>
-
-                    {/* 素体割り当て UI */}
-                    <div style={{ marginTop: 8 }}>
-                      <select
-                        value={avatarBaseMap[a.id] ?? ""}
-                        onChange={(e) => {
-                          const baseId = e.target.value;
-
-                          setAvatarBaseMap((prev) => {
-                            const next = { ...prev };
-                            if (baseId) next[a.id] = baseId;
-                            else delete next[a.id];
-                            return next;
-                          });
-                        }}
-                        style={{ width: "100%" }}
-                      >
-                        <option value="">（素体なし）</option>
-                        {bodyBases.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
-                      素体: {bodyBases.find((b) => b.id === avatarBaseMap[a.id])?.name ?? "（不明）"}
-                    </div>
-
-                    {/* お気に入り割り当て UI */}
-                    <div style={{ marginTop: 8 }}>
-                      <select
-                        value={avatarFavMap[a.id] ?? ""}
-                        onChange={(e) => {
-                          const favId = e.target.value;
-                          setAvatarFavMap((prev) => {
-                            const next = { ...prev };
-                            if (favId) next[a.id] = favId;
-                            else delete next[a.id];
-                            return next;
-                          });
-                        }}
-                        style={{ width: "100%" }}
-                        className="modern-select"
-                      >
-                        <option value="">（お気に入りなし）</option>
-                        {favFolders.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            ★ {f.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* タグ (最大5個) */}
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
-                        {(avatarTags[a.id] || []).map((tag, i) => (
-                          <span key={i} className="tag-chip">
-                            {tag}
-                            <button
-                              className="tag-delete-btn"
-                              onClick={() => {
-                                setAvatarTags((prev) => {
-                                  const next = { ...prev };
-                                  const list = next[a.id] || [];
-                                  next[a.id] = list.filter((_, idx) => idx !== i);
-                                  if (next[a.id].length === 0) delete next[a.id];
-                                  return next;
-                                });
-                              }}
-                            >
-                              ✕
-                            </button>
-                          </span>
-                        ))}
+                      <div className="card-meta">
+                        <div>対応: {(a.platforms ?? []).join(", ") || "-"}</div>
+                        <div>作成: {a.createdAt ? new Date(a.createdAt).toLocaleString() : "-"}</div>
+                        <div>更新: {a.updatedAt ? new Date(a.updatedAt).toLocaleString() : "-"}</div>
                       </div>
 
-                      {(avatarTags[a.id] || []).length < 5 && (
-                        <form
-                          className="tag-form"
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            const input = e.currentTarget.elements.namedItem("tag") as HTMLInputElement;
-                            const val = input.value.trim();
-                            if (!val) return;
-                            if ((avatarTags[a.id] || []).length >= 5) return;
+                      <div style={{ fontSize: "0.85rem", marginBottom: 12, display: "flex", gap: 8, opacity: 0.9 }}>
+                        <div>🖥 {rankBadge(getPerfRank(a.performance, "standalonewindows"))}</div>
+                        <div>📱 {rankBadge(getPerfRank(a.performance, "android"))}</div>
+                      </div>
 
-                            setAvatarTags((prev) => {
+                      <div style={{ marginTop: "auto", display: "grid", gap: 8 }}>
+                        <button
+                          onClick={() => window.open(`https://vrchat.com/home/avatar/${a.id}`, "_blank", "noopener,noreferrer")}
+                          className="btn btn-primary btn-sm"
+                          style={{ width: "100%", justifyContent: "center" }}
+                        >
+                          🔗 VRChatで開く
+                        </button>
+
+                        <button
+                          onClick={() => selectAvatar(a.id)}
+                          className="btn btn-success btn-sm"
+                          style={{ width: "100%", justifyContent: "center" }}
+                        >
+                          ✅ このアバターに変更
+                        </button>
+                      </div>
+
+                      {/* 素体割り当て UI */}
+                      <div style={{ marginTop: 12 }}>
+                        <select
+                          value={avatarBaseMap[a.id] ?? ""}
+                          onChange={(e) => {
+                            const baseId = e.target.value;
+                            setAvatarBaseMap((prev) => {
                               const next = { ...prev };
-                              const list = next[a.id] || [];
-                              next[a.id] = [...list, val];
+                              if (baseId) next[a.id] = baseId;
+                              else delete next[a.id];
                               return next;
                             });
-                            input.value = "";
                           }}
+                          className="modern-select"
+                          style={{ width: "100%", fontSize: "0.85rem" }}
                         >
-                          <input
-                            name="tag"
-                            className="tag-input"
-                            placeholder="タグを追加"
-                          />
-                          <button type="submit" style={{ fontSize: 12, padding: "2px 6px" }}>
-                            ＋
-                          </button>
-                        </form>
-                      )}
+                          <option value="">（素体なし）</option>
+                          {bodyBases.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>
+                        素体: {bodyBases.find((b) => b.id === avatarBaseMap[a.id])?.name ?? "（なし）"}
+                      </div>
+
+                      {/* お気に入り割り当て UI */}
+                      <div style={{ marginTop: 8 }}>
+                        <select
+                          value={avatarFavMap[a.id] ?? ""}
+                          onChange={(e) => {
+                            const favId = e.target.value;
+                            setAvatarFavMap((prev) => {
+                              const next = { ...prev };
+                              if (favId) next[a.id] = favId;
+                              else delete next[a.id];
+                              return next;
+                            });
+                          }}
+                          className="modern-select"
+                          style={{ width: "100%", fontSize: "0.85rem" }}
+                        >
+                          <option value="">（お気に入りなし）</option>
+                          {favFolders.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              ★ {f.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* タグ (最大5個) */}
+                      <div style={{ marginTop: 12 }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 4 }}>
+                          {(avatarTags[a.id] || []).map((tag, i) => (
+                            <span key={i} className="tag-chip">
+                              {tag}
+                              <button
+                                className="tag-delete-btn"
+                                onClick={() => {
+                                  setAvatarTags((prev) => {
+                                    const next = { ...prev };
+                                    const list = next[a.id] || [];
+                                    next[a.id] = list.filter((_, idx) => idx !== i);
+                                    if (next[a.id].length === 0) delete next[a.id];
+                                    return next;
+                                  });
+                                }}
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+
+                        {(avatarTags[a.id] || []).length < 5 && (
+                          <form
+                            className="tag-form"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              const input = e.currentTarget.elements.namedItem("tag") as HTMLInputElement;
+                              const val = input.value.trim();
+                              if (!val) return;
+                              if ((avatarTags[a.id] || []).length >= 5) return;
+
+                              setAvatarTags((prev) => {
+                                const next = { ...prev };
+                                const list = next[a.id] || [];
+                                next[a.id] = [...list, val];
+                                return next;
+                              });
+                              input.value = "";
+                            }}
+                          >
+                            <input
+                              name="tag"
+                              className="tag-input"
+                              placeholder="タグを追加"
+                              style={{ background: "#f8fafc" }}
+                            />
+                            <button type="submit" className="btn btn-secondary btn-sm" style={{ padding: "2px 6px", height: "auto" }}>
+                              ＋
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
