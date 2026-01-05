@@ -609,7 +609,7 @@ export default function App() {
                 cursor: "pointer",
               }}
             >
-              ⏻ ログアウト
+              🚪 ログアウト
             </button>
           )}
           <button onClick={() => setShowSettings(true)}>⚙ 設定</button>
