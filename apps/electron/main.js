@@ -22,11 +22,17 @@ async function createWindow() {
         // Production Mode: Spawn bundled API server
         const serverPath = path.join(process.resourcesPath, "api", "server.js");
 
-        // Portable Data Path: Next to the executable
-        // Note: If installed in Program Files, this might fail due to perm permissions.
-        // But for 'portable' target, usually user places it in a writeable folder.
-        const exeDir = path.dirname(process.execPath);
-        const sessionFile = path.join(exeDir, "vrc-avatar-manager-sessions.json");
+        // Portable Data Path:
+        // 1. If running as portable (NSIS), use the directory where the exe is located (before extraction temp)
+        // 2. Fallback to standard userData (AppData) if not portable specific
+        let dataDir = process.env.PORTABLE_EXECUTABLE_DIR;
+        if (!dataDir) {
+            // Fallback: use userData (AppData/Roaming/...)
+            dataDir = app.getPath('userData');
+        }
+
+        const sessionFile = path.join(dataDir, "vrc-avatar-manager-sessions.json");
+        const settingsFile = path.join(dataDir, "vrc-avatar-manager-settings.json");
         const webDir = path.join(__dirname, "web");
 
         apiProcess = spawn(process.execPath, [serverPath], {
@@ -34,6 +40,7 @@ async function createWindow() {
                 ...process.env,
                 PORT: port.toString(),
                 VAM_SESSION_FILE: sessionFile,
+                VAM_SETTINGS_FILE: settingsFile,
                 VAM_WEB_DIR: webDir,
                 ELECTRON_RUN_AS_NODE: "1"
             },

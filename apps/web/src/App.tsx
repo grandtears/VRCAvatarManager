@@ -12,17 +12,13 @@ import type {
   TwoFAMethod,
 } from "./types";
 import {
-  loadBodyBases,
+  fetchSettings, // Imported
+  loadBodyBases, // kept for backward compat if needed by other files, but unused in App
   saveBodyBases,
-  loadAvatarBaseMap,
   saveAvatarBaseMap,
-  loadFavFolders,
   saveFavFolders,
-  loadAvatarFavMap,
   saveAvatarFavMap,
-  loadAvatarTags,
   saveAvatarTags,
-  loadConfirmAvatarChange,
   saveConfirmAvatarChange,
 } from "./storage";
 import { uid, normalizeRank, getPerfRank, rankBadge } from "./utils";
@@ -65,34 +61,31 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<Avatar[]>([]);
 
   const [showSettings, setShowSettings] = useState(false);
-  const [bodyBases, setBodyBases] = useState<BodyBase[]>(() => loadBodyBases());
 
-  const [avatarBaseMap, setAvatarBaseMap] = useState<AvatarBaseMap>(() =>
-    loadAvatarBaseMap()
-  );
-
+  // Initialize with empty/defaults to avoid blocking render
+  const [bodyBases, setBodyBases] = useState<BodyBase[]>([]);
+  const [avatarBaseMap, setAvatarBaseMap] = useState<AvatarBaseMap>({});
   const [onlyMobile, setOnlyMobile] = useState(false);
-
-  // 素体フィルタ（"" = すべて, "__none__" = 未割り当て）
   const [filterBaseId, setFilterBaseId] = useState<string>("");
-
-  const [confirmAvatarChange, setConfirmAvatarChange] = useState<boolean>(() =>
-    loadConfirmAvatarChange()
-  );
-
+  const [confirmAvatarChange, setConfirmAvatarChange] = useState<boolean>(false);
   const [sort, setSort] = useState("updated");
   const [order, setOrder] = useState("descending");
-
-  /* お気に入り */
-  const [favFolders, setFavFolders] = useState<FavFolder[]>(() => loadFavFolders());
-  const [avatarFavMap, setAvatarFavMap] = useState<AvatarFavMap>(() =>
-    loadAvatarFavMap()
-  );
-  // お気に入りフィルタ（"" = すべて, "__none__" = 未分類）
+  const [favFolders, setFavFolders] = useState<FavFolder[]>([]);
+  const [avatarFavMap, setAvatarFavMap] = useState<AvatarFavMap>({});
   const [filterFavId, setFilterFavId] = useState<string>("");
+  const [avatarTags, setAvatarTags] = useState<AvatarTagMap>({});
 
-  /* タグ機能 state */
-  const [avatarTags, setAvatarTags] = useState<AvatarTagMap>(() => loadAvatarTags());
+  // Load settings on mount
+  useEffect(() => {
+    fetchSettings().then((s) => {
+      setBodyBases(s.bodyBases);
+      setAvatarBaseMap(s.avatarBaseMap);
+      setFavFolders(s.favFolders);
+      setAvatarFavMap(s.avatarFavMap);
+      setAvatarTags(s.avatarTags);
+      setConfirmAvatarChange(s.confirmAvatarChange);
+    });
+  }, []);
 
   /* サイドバー開閉 */
   const [isBodyExpanded, setIsBodyExpanded] = useState(false);

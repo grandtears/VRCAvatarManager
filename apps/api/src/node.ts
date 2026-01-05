@@ -25,6 +25,35 @@ type Env = {
 
 const app = new Hono<Env>();
 
+// Settings Persistence
+import fs from "node:fs";
+import path from "node:path";
+const SETTINGS_FILE = process.env.VAM_SETTINGS_FILE
+    ? path.resolve(process.env.VAM_SETTINGS_FILE)
+    : path.resolve(process.cwd(), "settings.json");
+
+function loadSettings() {
+    if (!fs.existsSync(SETTINGS_FILE)) return {};
+    try {
+        return JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"));
+    } catch {
+        return {};
+    }
+}
+function saveSettings(data: any) {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2));
+}
+
+// Settings Endpoints
+app.get("/settings", (c) => {
+    return c.json(loadSettings());
+});
+app.post("/settings", async (c) => {
+    const data = await c.req.json();
+    saveSettings(data);
+    return c.json({ ok: true });
+});
+
 // Windows GUI app (Electron) blocks if console.log writes to non-existent stdout.
 
 // CORS（Viteから叩く）
