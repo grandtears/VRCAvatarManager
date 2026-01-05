@@ -156,6 +156,18 @@ export default function App() {
     query,
     bodyBases,
   ]);
+  const baseCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let none = 0;
+
+    for (const a of shownAvatars) {
+      const bid = avatarBaseMap[a.id];
+      if (!bid) none++;
+      else counts[bid] = (counts[bid] ?? 0) + 1;
+    }
+
+    return { all: shownAvatars.length, none, byId: counts };
+  }, [shownAvatars, avatarBaseMap]);
 
   async function doLogin() {
     setError("");
@@ -332,22 +344,20 @@ export default function App() {
   function getPerfRank(perf: any, platform: "standalonewindows" | "android"): string | null {
     if (!perf) return null;
 
-    // ケース1: perf が文字列（まれ）
     const asStr = normalizeRank(perf);
     if (typeof perf === "string" && asStr) return asStr;
 
-    // ケース2: { "standalonewindows": { rating/rank: "Excellent" }, "android": {...} } みたいな形
     const p1 = perf?.[platform];
     const r1 = normalizeRank(p1?.rating ?? p1?.rank ?? p1);
     if (r1) return r1;
 
-    // ケース3: { pc: {...}, quest: {...} } みたいな別名
     const altKey =
-      platform === "standalonewindows" ? (perf?.pc ?? perf?.windows ?? perf?.win) : (perf?.quest ?? perf?.mobile ?? perf?.android);
+      platform === "standalonewindows"
+        ? perf?.pc ?? perf?.windows ?? perf?.win
+        : perf?.quest ?? perf?.mobile ?? perf?.android;
     const r2 = normalizeRank(altKey?.rating ?? altKey?.rank ?? altKey);
     if (r2) return r2;
 
-    // ケース4: どこかに rating/rank が直でいる
     const r3 = normalizeRank(perf?.rating ?? perf?.rank);
     if (r3) return r3;
 
@@ -355,9 +365,7 @@ export default function App() {
   }
 
   function rankBadge(rank: string | null): string {
-    console.log(rank);
     if (!rank) return "-";
-    // 好みで絵文字
     if (rank === "Excellent") return "🟦 Excellent";
     if (rank === "Good") return "🟩 Good";
     if (rank === "Medium") return "🟨 Medium";
@@ -365,6 +373,28 @@ export default function App() {
     if (rank === "VeryPoor") return "🟥 VeryPoor";
     return rank;
   }
+
+  function BaseItem(props: { active: boolean; label: string; onClick: () => void }) {
+    const { active, label, onClick } = props;
+    return (
+      <button
+        onClick={onClick}
+        style={{
+          textAlign: "left",
+          width: "100%",
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid #ddd",
+          background: active ? "#e8f0fe" : "#fff",
+          cursor: "pointer",
+          fontWeight: active ? 700 : 500,
+        }}
+      >
+        {label}
+      </button>
+    );
+  }
+
   useEffect(() => {
     (async () => {
       try {
@@ -383,6 +413,7 @@ export default function App() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   useEffect(() => {
     if (state === "logged_in") {
       setOffset(0);
@@ -434,7 +465,9 @@ export default function App() {
           {error}
         </div>
       )}
+
       {state === "boot" && <div style={{ opacity: 0.7 }}>起動中…</div>}
+
       {state === "idle" && (
         <div style={{ maxWidth: 420, display: "grid", gap: 8 }}>
           <h2>ログイン</h2>
@@ -472,11 +505,7 @@ export default function App() {
             </select>
           </div>
 
-          <input
-            placeholder="6桁コード"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
+          <input placeholder="6桁コード" value={code} onChange={(e) => setCode(e.target.value)} />
           <button onClick={do2fa}>送信</button>
         </div>
       )}
@@ -492,7 +521,6 @@ export default function App() {
             <button
               style={{ marginLeft: 12 }}
               onClick={() => {
-                // 一覧をリセットして再取得
                 setMode("list");
                 setQuery("");
                 setSearchResults([]);
@@ -589,127 +617,155 @@ export default function App() {
             </label>
           </div>
 
-          {/* 一覧（IIFEを廃止して通常描画に） */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(5, 1fr)",
-              gap: 12,
-            }}
-          >
-            {filteredAvatars.map((a) => (
-              <div key={a.id} style={{ border: "1px solid #ddd", padding: 8 }}>
-                <img
-                  src={a.thumbnail}
-                  style={{ width: "100%", borderRadius: 6 }}
-                  loading="lazy"
+          {/* 左ペイン */}
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            {/* 左ペイン：素体カテゴリ（ショートカット） */}
+            <aside
+              style={{
+                width: 240,
+                border: "1px solid #ddd",
+                borderRadius: 8,
+                padding: 10,
+                position: "sticky",
+                top: 12,
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 10 }}>素体カテゴリ</div>
+
+              <div style={{ display: "grid", gap: 6 }}>
+                <BaseItem
+                  active={filterBaseId === ""}
+                  label={`すべて (${baseCounts.all})`}
+                  onClick={() => setFilterBaseId("")}
                 />
+                <BaseItem
+                  active={filterBaseId === "__none__"}
+                  label={`未割り当て (${baseCounts.none})`}
+                  onClick={() => setFilterBaseId("__none__")}
+                />
+                <div style={{ height: 1, background: "#eee", margin: "6px 0" }} />
 
-                <div style={{ marginTop: 6, fontWeight: 600 }}>{a.name}</div>
-                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
-                  <div>
-                    対応: <b>{(a.platforms ?? []).join(", ") || "-"}</b>
-                  </div>
-                  <div>
-                    作成: {a.createdAt ? new Date(a.createdAt).toLocaleString() : "-"}
-                  </div>
-                  <div>
-                    更新: {a.updatedAt ? new Date(a.updatedAt).toLocaleString() : "-"}
-                  </div>
-                </div>
-                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
-                  <div>🖥 {rankBadge(getPerfRank(a.performance, "standalonewindows"))}</div>
-                  <div>📱 {rankBadge(getPerfRank(a.performance, "android"))}</div>
-                </div>
-
-                <button
-                  onClick={() =>
-                    window.open(
-                      `https://vrchat.com/home/avatar/${a.id}`,
-                      "_blank",
-                      "noopener,noreferrer"
-                    )
-                  }
-                  style={{
-                    marginTop: 6,
-                    width: "100%",
-                    background: "#1e88e5",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 4,
-                    padding: "6px 8px",
-                    cursor: "pointer",
-                  }}
-                >
-                  🔗 VRChatで開く
-                </button>
-                <button
-                  onClick={() => selectAvatar(a.id)}
-                  style={{
-                    marginTop: 6,
-                    width: "100%",
-                    background: "#2e7d32",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 4,
-                    padding: "6px 8px",
-                    cursor: "pointer",
-                  }}
-                >
-                  ✅ このアバターに変更
-                </button>
-
-                {/* 素体割り当て UI */}
-                <div style={{ marginTop: 8 }}>
-                  <select
-                    value={avatarBaseMap[a.id] ?? ""}
-                    onChange={(e) => {
-                      const baseId = e.target.value;
-
-                      setAvatarBaseMap((prev) => {
-                        const next = { ...prev };
-                        if (baseId) {
-                          next[a.id] = baseId;
-                        } else {
-                          delete next[a.id];
-                        }
-                        return next;
-                      });
-                    }}
-                    style={{ width: "100%" }}
-                  >
-                    <option value="">（素体なし）</option>
-                    {bodyBases.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 現在の割り当て表示 */}
-                {avatarBaseMap[a.id] && (
-                  <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
-                    素体:{" "}
-                    {bodyBases.find((b) => b.id === avatarBaseMap[a.id])?.name ??
-                      "（不明）"}
-                  </div>
-                )}
+                {bodyBases.map((b) => (
+                  <BaseItem
+                    key={b.id}
+                    active={filterBaseId === b.id}
+                    label={`${b.name} (${baseCounts.byId[b.id] ?? 0})`}
+                    onClick={() => setFilterBaseId(b.id)}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </aside>
 
-          {shownHasMore && (
-            <div style={{ marginTop: 16 }}>
-              <button
-                onClick={() =>
-                  mode === "search" ? searchAvatars(false) : loadAvatars(false)
-                }
+            {/* 右：一覧 */}
+            <main style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(5, 1fr)",
+                  gap: 12,
+                }}
               >
-                もっと読む
-              </button>
-            </div>
-          )}
+                {filteredAvatars.map((a) => (
+                  <div key={a.id} style={{ border: "1px solid #ddd", padding: 8 }}>
+                    <img
+                      src={a.thumbnail}
+                      style={{ width: "100%", borderRadius: 6 }}
+                      loading="lazy"
+                    />
+
+                    <div style={{ marginTop: 6, fontWeight: 600 }}>{a.name}</div>
+
+                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+                      <div>
+                        対応: <b>{(a.platforms ?? []).join(", ") || "-"}</b>
+                      </div>
+                      <div>作成: {a.createdAt ? new Date(a.createdAt).toLocaleString() : "-"}</div>
+                      <div>更新: {a.updatedAt ? new Date(a.updatedAt).toLocaleString() : "-"}</div>
+                    </div>
+
+                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.9 }}>
+                      <div>🖥 {rankBadge(getPerfRank(a.performance, "standalonewindows"))}</div>
+                      <div>📱 {rankBadge(getPerfRank(a.performance, "android"))}</div>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        window.open(`https://vrchat.com/home/avatar/${a.id}`, "_blank", "noopener,noreferrer")
+                      }
+                      style={{
+                        marginTop: 6,
+                        width: "100%",
+                        background: "#1e88e5",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 4,
+                        padding: "6px 8px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🔗 VRChatで開く
+                    </button>
+
+                    <button
+                      onClick={() => selectAvatar(a.id)}
+                      style={{
+                        marginTop: 6,
+                        width: "100%",
+                        background: "#2e7d32",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 4,
+                        padding: "6px 8px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      ✅ このアバターに変更
+                    </button>
+
+                    {/* 素体割り当て UI */}
+                    <div style={{ marginTop: 8 }}>
+                      <select
+                        value={avatarBaseMap[a.id] ?? ""}
+                        onChange={(e) => {
+                          const baseId = e.target.value;
+
+                          setAvatarBaseMap((prev) => {
+                            const next = { ...prev };
+                            if (baseId) next[a.id] = baseId;
+                            else delete next[a.id];
+                            return next;
+                          });
+                        }}
+                        style={{ width: "100%" }}
+                      >
+                        <option value="">（素体なし）</option>
+                        {bodyBases.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 現在の割り当て表示 */}
+                    {avatarBaseMap[a.id] && (
+                      <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
+                        素体: {bodyBases.find((b) => b.id === avatarBaseMap[a.id])?.name ?? "（不明）"}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {shownHasMore && (
+                <div style={{ marginTop: 16 }}>
+                  <button onClick={() => (mode === "search" ? searchAvatars(false) : loadAvatars(false))}>
+                    もっと読む
+                  </button>
+                </div>
+              )}
+            </main>
+          </div>
         </div>
       )}
 
@@ -755,6 +811,7 @@ export default function App() {
         return next;
       });
     }
+
     return (
       <div style={overlayStyle}>
         <div style={modalStyle}>
