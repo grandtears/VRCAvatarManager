@@ -632,6 +632,52 @@ export default function App() {
     console.log("hits in list:", hits);
   }, [filterBaseId, bodyBases, avatars, avatarBaseMap]);
 
+  /* バックアップ機能 */
+  function exportBackup() {
+    const data = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      bodyBases,
+      avatarBaseMap,
+      favFolders,
+      avatarFavMap,
+      avatarTags,
+      settings: {
+        confirmAvatarChange,
+      },
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vam-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importBackup(file: File) {
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+
+      if (!json || typeof json !== "object") throw new Error("Invalid JSON");
+
+      if (window.confirm("現在のデータを上書きしてインポートしますか？\n(元に戻すことはできません)")) {
+        if (Array.isArray(json.bodyBases)) setBodyBases(json.bodyBases);
+        if (typeof json.avatarBaseMap === "object") setAvatarBaseMap(json.avatarBaseMap);
+        if (Array.isArray(json.favFolders)) setFavFolders(json.favFolders);
+        if (typeof json.avatarFavMap === "object") setAvatarFavMap(json.avatarFavMap);
+        if (typeof json.avatarTags === "object") setAvatarTags(json.avatarTags);
+        if (json.settings?.confirmAvatarChange !== undefined) {
+          setConfirmAvatarChange(!!json.settings.confirmAvatarChange);
+        }
+        alert("インポートが完了しました");
+      }
+    } catch (e) {
+      alert("インポートに失敗しました: " + e);
+    }
+  }
+
   return (
     <div>
       <header className="app-header">
@@ -1129,7 +1175,10 @@ export default function App() {
             confirmAvatarChange={confirmAvatarChange}
             setConfirmAvatarChange={setConfirmAvatarChange}
             onClose={() => setShowSettings(false)}
+            onExport={exportBackup}
+            onImport={importBackup}
           />
+
         )
       }
     </div >
@@ -1146,6 +1195,8 @@ function SettingsModal(props: {
   confirmAvatarChange: boolean;
   setConfirmAvatarChange: React.Dispatch<React.SetStateAction<boolean>>;
   onClose: () => void;
+  onExport: () => void;
+  onImport: (file: File) => void;
 }) {
   const {
     bodyBases,
@@ -1154,6 +1205,8 @@ function SettingsModal(props: {
     confirmAvatarChange,
     setConfirmAvatarChange,
     onClose,
+    onExport,
+    onImport,
   } = props;
 
   const [input, setInput] = useState("");
@@ -1197,6 +1250,28 @@ function SettingsModal(props: {
             />
             アバター変更時に確認ダイアログを表示する
           </label>
+        </div>
+
+        {/* データ管理 */}
+        <div style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: 16, margin: "0 0 8px 0" }}>データ管理</h3>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-secondary btn-sm" onClick={onExport}>
+              📥 エクスポート (JSON)
+            </button>
+            <label className="btn btn-secondary btn-sm" style={{ cursor: "pointer" }}>
+              📤 インポート (JSON)
+              <input
+                type="file"
+                accept=".json"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  if (e.target.files?.[0]) onImport(e.target.files[0]);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
         </div>
 
         {/* 追加 */}
