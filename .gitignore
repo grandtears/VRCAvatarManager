@@ -68,8 +68,8 @@ coverage/
 # =========================
 # VRChat API local cache
 # =========================
+apps/api/sessions.json
 apps/api/vrchat-session.json
-apps/api/*.json
 
 # =========================
 # Temporary / Runtime

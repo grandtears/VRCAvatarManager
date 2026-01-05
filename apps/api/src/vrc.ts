@@ -2,9 +2,9 @@ import crypto from "node:crypto";
 import { CookieJar } from "tough-cookie";
 import type { Cookie } from "tough-cookie";
 import makeFetchCookie from "fetch-cookie";
-import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
+import { logToFile } from "./logger.ts";
 
 export type TwoFAMethod = "totp" | "emailOtp";
 
@@ -13,10 +13,11 @@ const sessions = new Map<string, Session>();
 
 const VRC_BASE = "https://api.vrchat.cloud/api/1";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// vrc.ts から見て ../sessions.json（= apps/api/sessions.json を想定）
-const SESSION_FILE = path.resolve(__dirname, "../sessions.json");
+// 環境変数でパス指定があればそちらを優先（Electron/Portable用）
+// Dev mode fallback: assume running from package root
+const SESSION_FILE = process.env.VAM_SESSION_FILE
+    ? path.resolve(process.env.VAM_SESSION_FILE)
+    : path.resolve(process.cwd(), "sessions.json");
 
 const USER_AGENT = "VRChatAvatarManager/0.1";
 
@@ -41,10 +42,7 @@ function loadSessions() {
             const jar = CookieJar.fromJSON(jarJSON);
             sessions.set(sid, { jar });
         }
-
-        console.log(`[vrc] loaded ${sessions.size} sessions`);
     } catch (e) {
-        console.warn("[vrc] failed to load sessions.json", e);
     }
 }
 
@@ -122,6 +120,7 @@ export async function vrcLogin(sid: string, username: string, password: string) 
 
 /** 2FA（Email/TOTP）verify */
 export async function vrcVerify2FA(sid: string, method: TwoFAMethod, code: string) {
+    logToFile(`[vrc] vrcVerify2FA start sid=${sid} method=${method}`);
     const { jar } = getSession(sid);
     const f = getAuthedFetch(jar);
 
@@ -130,6 +129,7 @@ export async function vrcVerify2FA(sid: string, method: TwoFAMethod, code: strin
             ? "/auth/twofactorauth/emailotp/verify"
             : "/auth/twofactorauth/totp/verify";
 
+    logToFile(`[vrc] sending verify request to ${verifyPath}`);
     const res = await f(`${VRC_BASE}${verifyPath}`, {
         method: "POST",
         headers: {
@@ -137,25 +137,33 @@ export async function vrcVerify2FA(sid: string, method: TwoFAMethod, code: strin
             "Content-Type": "application/json",
         },
         body: JSON.stringify({ code }),
+        // signal: AbortSignal.timeout(5000), // optional timeout?
     });
+    logToFile(`[vrc] verify response status=${res.status}`);
 
     const data = await readJsonSafe(res);
     if (!res.ok) {
+        logToFile(`[vrc] verify failed: ${JSON.stringify(data)}`);
         return { ok: false as const, status: res.status, body: data };
     }
 
     // verify後に user を確認（ログイン完了状態になる）
+    logToFile(`[vrc] fetching me`);
     const meRes = await f(`${VRC_BASE}/auth/user`, {
         method: "GET",
         headers: { "User-Agent": USER_AGENT },
     });
+    logToFile(`[vrc] me response status=${meRes.status}`);
 
     const me = await readJsonSafe(meRes);
     if (!meRes.ok) {
+        logToFile(`[vrc] me failed: ${JSON.stringify(me)}`);
         return { ok: false as const, status: meRes.status, body: me };
     }
 
+    logToFile(`[vrc] saving sessions`);
     saveSessions();
+    logToFile(`[vrc] 2FA success`);
     return { ok: true as const, user: me };
 }
 

@@ -1,12 +1,62 @@
 {
-  "name": "electron",
+  "name": "vrc-avatar-manager",
+  "private": true,
   "version": "1.0.0",
-  "main": "index.js",
+  "author": "Sonoty",
+  "description": "VRChat Avatar Manager Standalone",
+  "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "concurrently \"npm run dev -w ../web\" \"npm run dev -w ../api\" \"wait-on tcp:5173 tcp:8787 && electron .\"",
+    "build": "electron-builder build --win portable"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": ""
+  "build": {
+    "appId": "com.sonoty.vrcavatarmanager",
+    "productName": "VRC Avatar Manager",
+    "electronVersion": "28.1.0",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "package.json",
+      {
+        "from": "node_modules",
+        "to": "node_modules",
+        "filter": [
+          "**/*"
+        ]
+      },
+      "main.js",
+      "preload.js",
+      {
+        "from": "../web/dist",
+        "to": "web",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "../api/dist",
+        "to": "api",
+        "filter": [
+          "server.js"
+        ]
+      }
+    ],
+    "win": {
+      "target": "portable"
+    }
+  },
+  "dependencies": {
+    "get-port": "^7.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "cross-env": "^7.0.3",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "wait-on": "^7.2.0"
+  }
 }

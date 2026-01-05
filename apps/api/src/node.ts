@@ -15,6 +15,7 @@ import {
     deleteSession,
     type TwoFAMethod
 } from "./vrc.ts";
+import { logToFile } from "./logger.ts";
 
 type Env = {
     Variables: {
@@ -24,11 +25,23 @@ type Env = {
 
 const app = new Hono<Env>();
 
+// Windows GUI app (Electron) blocks if console.log writes to non-existent stdout.
+
 // CORS（Viteから叩く）
 app.use(
     "*",
     cors({
-        origin: "http://localhost:5173",
+        origin: (origin) => {
+            // Electron (production) often sends "file://" or "null"
+            if (!origin || origin === "null" || origin.startsWith("file://")) {
+                return origin || "*"; // Return incoming or * if null (though credentials require exact)
+            }
+            // Dev mode
+            if (origin.startsWith("http://localhost")) {
+                return origin;
+            }
+            return origin; // Fallback: allow purely local usage
+        },
         credentials: true
     })
 );
@@ -80,8 +93,10 @@ app.post("/auth/login", async (c) => {
 app.post("/auth/2fa", async (c) => {
     const { method, code } = await c.req.json<{ method: TwoFAMethod; code: string }>();
     const sid = c.get("sid");
+    logToFile(`[node] 2FA request sid=${sid}`);
 
     const r = await vrcVerify2FA(sid, method, code);
+    logToFile(`[node] 2FA result ok=${r.ok}`);
 
     if (!r.ok) return c.json({ ok: false, status: r.status, body: r.body }, 401);
 
@@ -283,7 +298,50 @@ app.get("/auth/me", async (c) => {
     });
 });
 
+// Static file serving for production (Electron)
+const WEB_DIR = process.env.VAM_WEB_DIR;
+if (WEB_DIR) {
+    const fsSync = require("node:fs");
+    const pathSync = require("node:path");
+
+    // Serve static files
+    app.get("*", async (c) => {
+        const urlPath = c.req.path === "/" ? "/index.html" : c.req.path;
+        const filePath = pathSync.join(WEB_DIR, urlPath);
+
+        try {
+            const stat = fsSync.statSync(filePath);
+            if (stat.isFile()) {
+                const content = fsSync.readFileSync(filePath);
+                const ext = pathSync.extname(filePath).toLowerCase();
+                const mimeTypes: Record<string, string> = {
+                    ".html": "text/html",
+                    ".js": "application/javascript",
+                    ".css": "text/css",
+                    ".json": "application/json",
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                    ".svg": "image/svg+xml",
+                    ".ico": "image/x-icon",
+                };
+                const contentType = mimeTypes[ext] || "application/octet-stream";
+                return c.body(content, 200, { "Content-Type": contentType });
+            }
+        } catch (e) {
+            // File not found, try index.html for SPA routing
+            try {
+                const indexPath = pathSync.join(WEB_DIR, "index.html");
+                const content = fsSync.readFileSync(indexPath);
+                return c.body(content, 200, { "Content-Type": "text/html" });
+            } catch {
+                return c.notFound();
+            }
+        }
+        return c.notFound();
+    });
+}
+
 // 大事
-const port = 8787;
-serve({ fetch: app.fetch, port, hostname: "127.0.0.1" });
-console.log(`API started on http://localhost:${port}`);
+const port = Number(process.env.PORT || 8787);
+serve({ fetch: app.fetch, port, hostname: "localhost" });
+// touch

@@ -126,4 +126,3 @@ app.get("/avatars", async (c) => {
 // APIのポート
 const port = 8787;
 serve({ fetch: app.fetch, port });
-console.log(`API started on http://localhost:${port}`);

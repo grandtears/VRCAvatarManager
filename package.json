@@ -5,9 +5,9 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "concurrently -n API,WEB,ELECTRON -c blue,green,magenta \"npm -w apps/api run dev\" \"npm -w apps/web run dev\" \"npm -w apps/electron run dev\"",
+    "dev": "npm -w apps/electron run dev",
     "dev:noweb": "concurrently -n API,WEB -c blue,green \"npm -w apps/api run dev\" \"npm -w apps/web run dev\"",
-    "build": "npm -w apps/web run build && npm -w apps/electron run build"
+    "build": "npm -w apps/api run build && npm -w apps/web run build && npm -w apps/electron run build"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

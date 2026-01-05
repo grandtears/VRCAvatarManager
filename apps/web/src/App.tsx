@@ -29,7 +29,7 @@ import { uid, normalizeRank, getPerfRank, rankBadge } from "./utils";
 import { SettingsModal } from "./components/SettingsModal";
 import { BaseItem } from "./components/BaseItem";
 
-const API = "http://localhost:8787";
+const API = (window as any).VAM_API_URL || "http://localhost:8787";
 
 export default function App() {
   const [state, setState] = useState<State>("boot");
@@ -238,6 +238,7 @@ export default function App() {
 
   async function do2fa() {
     setError("");
+    setLoadingProgress("認証中...");
 
     try {
       const r = await fetch(`${API}/auth/2fa`, {
@@ -250,14 +251,17 @@ export default function App() {
       const j = await r.json().catch(() => null);
 
       if (!j?.ok) {
-        setError("2FAコードが違う/期限切れ/未ログイン");
+        const backendMsg = j?.body?.error?.message || JSON.stringify(j?.body) || "Unknown error";
+        setError(`2FA失敗: ${backendMsg}`);
         return;
       }
 
       setDisplayName(j.displayName || "");
       setState("logged_in");
-    } catch {
-      setError("2FA送信に失敗しました");
+    } catch (e) {
+      setError("2FA送信に失敗しました: " + String(e));
+    } finally {
+      setLoadingProgress("");
     }
   }
 
@@ -312,7 +316,6 @@ export default function App() {
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
     } catch (e) {
-      console.error(e);
       setError("アバター取得APIに接続できません");
     } finally {
       setIsLoadingAll(false);
@@ -475,10 +478,8 @@ export default function App() {
 
   useEffect(() => {
     const base = bodyBases.find((b) => b.id === filterBaseId);
-    console.log("filterBaseId:", filterBaseId, "name:", base?.name);
 
     const hits = avatars.filter((a) => avatarBaseMap[a.id] === filterBaseId).length;
-    console.log("hits in list:", hits);
   }, [filterBaseId, bodyBases, avatars, avatarBaseMap]);
 
   /* バックアップ機能 */
@@ -630,8 +631,9 @@ export default function App() {
               className="login-button"
               style={{ marginTop: 16 }}
               onClick={do2fa}
+              disabled={loadingProgress !== ""}
             >
-              送信
+              {loadingProgress ? "送信中..." : "送信"}
             </button>
           </div>
         </div>
