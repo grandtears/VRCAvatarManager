@@ -287,5 +287,5 @@ app.get("/auth/me", async (c) => {
 
 // 大事
 const port = 8787;
-serve({ fetch: app.fetch, port });
+serve({ fetch: app.fetch, port, hostname: "127.0.0.1" });
 console.log(`API started on http://localhost:${port}`);
