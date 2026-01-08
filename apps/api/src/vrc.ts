@@ -5,6 +5,7 @@ import makeFetchCookie from "fetch-cookie";
 import fs from "node:fs";
 import path from "node:path";
 import { logToFile } from "./logger.ts";
+import { encrypt, decrypt, isEncryptionAvailable } from "./encryption.ts";
 
 export type TwoFAMethod = "totp" | "emailOtp";
 
@@ -36,13 +37,32 @@ function loadSessions() {
 
     try {
         const raw = fs.readFileSync(SESSION_FILE, "utf8");
-        const data = JSON.parse(raw) as Record<string, any>;
+        let jsonStr = raw;
+
+        // 暗号化キーがある場合、復号を試みる
+        if (isEncryptionAvailable()) {
+            // 単純なJSONパースに失敗したら暗号化されているとみなす、あるいは形式で判断
+            // ここでは ':' が2つ含まれるかで簡易判定するか、とりあえず復号トライしてみる
+            if (!raw.trim().startsWith("{")) {
+                try {
+                    jsonStr = decrypt(raw);
+                } catch (e) {
+                    logToFile(`[vrc] Failed to decrypt session file: ${e}`);
+                    return; // 復号失敗＝読み込めない
+                }
+            } else {
+                logToFile(`[vrc] Session file found but seems plain text. Will encrypt on next save.`);
+            }
+        }
+
+        const data = JSON.parse(jsonStr) as Record<string, any>;
 
         for (const [sid, jarJSON] of Object.entries(data)) {
             const jar = CookieJar.fromJSON(jarJSON);
             sessions.set(sid, { jar });
         }
     } catch (e) {
+        logToFile(`[vrc] Error loading sessions: ${e}`);
     }
 }
 
@@ -51,7 +71,21 @@ function saveSessions() {
     for (const [sid, { jar }] of sessions.entries()) {
         obj[sid] = jar.toJSON();
     }
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(obj, null, 2));
+
+    let content = JSON.stringify(obj, null, 2);
+
+    // 暗号化キーがあれば暗号化
+    if (isEncryptionAvailable()) {
+        try {
+            content = encrypt(content);
+        } catch (e) {
+            logToFile(`[vrc] Failed to encrypt sessions: ${e}`);
+            // 失敗時は保存しない（平文で保存してしまうリスクを避けるため）
+            return;
+        }
+    }
+
+    fs.writeFileSync(SESSION_FILE, content);
 }
 
 export function createSession() {

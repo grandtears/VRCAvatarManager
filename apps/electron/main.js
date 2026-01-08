@@ -13,6 +13,56 @@ async function findPort() {
     }
 }
 
+
+/**
+ * 安全なランダムキー（32バイト＝256ビット）を生成し、
+ * safeStorageで暗号化して保存するか、既存のものを復号する。
+ * 成功すれば16進文字列のキーを返す。
+ */
+async function getOrInitSecret(dataDir) {
+    const { safeStorage } = require('electron');
+    const fs = require('fs');
+
+    // safeStorageが使えない環境（一部Linuxなど）への対処は今回は省略（エラーになる）
+    if (!safeStorage.isEncryptionAvailable()) {
+        console.warn("safeStorage is NOT available. Sessions will be saved in plain text.");
+        return null;
+    }
+
+    const secretFile = path.join(dataDir, "vrc-avatar-manager-secret.key");
+
+    if (fs.existsSync(secretFile)) {
+        // 既存キーのロード
+        try {
+            const encryptedParams = fs.readFileSync(secretFile);
+            // safeStorage.decryptString は Buffer を受け取ってUTF8文字列を返す想定だが
+            // 暗号化されたバイナリを扱うため decryptString ではなく decryptBuffer を使う方が安全かもしれないが
+            // ドキュメント上 decryptString は Buffer を取れる。
+            // ここでは hex 文字列として保存していたと仮定して読み書きする形にするのが安全
+            const decrypted = safeStorage.decryptString(encryptedParams);
+            return decrypted;
+        } catch (e) {
+            console.error("Failed to decrypt master key:", e);
+            // 復号失敗＝キー無効化。再生成すると旧セッションは読めなくなるが、アプリは起動できるようにする？
+            // ここではnullを返して平文動作にフォールバック、あるいは再生成
+            return null;
+        }
+    } else {
+        // 新規生成
+        const { randomBytes } = require('crypto');
+        const newKey = randomBytes(32).toString('hex'); // 64 chars
+
+        try {
+            const encrypted = safeStorage.encryptString(newKey);
+            fs.writeFileSync(secretFile, encrypted);
+            return newKey;
+        } catch (e) {
+            console.error("Failed to encrypt/save master key:", e);
+            return null;
+        }
+    }
+}
+
 async function createWindow() {
     const port = await findPort();
     // Preload script access this env
@@ -35,15 +85,23 @@ async function createWindow() {
         const settingsFile = path.join(dataDir, "vrc-avatar-manager-settings.json");
         const webDir = path.join(__dirname, "web");
 
+        // マスターキー準備
+        const secretKey = await getOrInitSecret(dataDir);
+        const envParams = {
+            ...process.env,
+            PORT: port.toString(),
+            VAM_SESSION_FILE: sessionFile,
+            VAM_SETTINGS_FILE: settingsFile,
+            VAM_WEB_DIR: webDir,
+            ELECTRON_RUN_AS_NODE: "1"
+        };
+
+        if (secretKey) {
+            envParams.VAM_SECRET = secretKey;
+        }
+
         apiProcess = spawn(process.execPath, [serverPath], {
-            env: {
-                ...process.env,
-                PORT: port.toString(),
-                VAM_SESSION_FILE: sessionFile,
-                VAM_SETTINGS_FILE: settingsFile,
-                VAM_WEB_DIR: webDir,
-                ELECTRON_RUN_AS_NODE: "1"
-            },
+            env: envParams,
             stdio: 'ignore' // 'inherit' causes blocking on Windows GUI apps without console
         });
 
