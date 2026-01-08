@@ -12,6 +12,7 @@
   "build": {
     "appId": "com.sonoty.vrcavatarmanager",
     "productName": "VRC Avatar Manager",
+    "icon": "resources/icon.png",
     "electronVersion": "28.1.0",
     "npmRebuild": false,
     "directories": {
