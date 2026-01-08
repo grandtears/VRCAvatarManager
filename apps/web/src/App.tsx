@@ -643,8 +643,23 @@ export default function App() {
                   className="sidebar-title"
                   onClick={() => setIsBodyExpanded(!isBodyExpanded)}
                 >
-                  素体カテゴリ
-                  <span>{isBodyExpanded ? "▼" : "▶"}</span>
+                  <span>
+                    素体カテゴリ <span style={{ fontSize: 12 }}>{isBodyExpanded ? "▼" : "▶"}</span>
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const name = prompt("素体名を入力（例：マヌカ）")?.trim();
+                      if (name) {
+                        setBodyBases((prev) => [...prev, { id: uid(), name }]);
+                        setIsBodyExpanded(true);
+                      }
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ padding: "0px 6px", height: "auto" }}
+                  >
+                    ＋
+                  </button>
                 </div>
 
                 {isBodyExpanded && (

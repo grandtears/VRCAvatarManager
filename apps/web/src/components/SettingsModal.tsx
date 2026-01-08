@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 import type { AvatarBaseMap, BodyBase } from "../types";
-import { uid } from "../utils";
+
 
 const overlayStyle: React.CSSProperties = {
     position: "fixed",
@@ -42,15 +42,7 @@ export function SettingsModal(props: {
         onImport,
     } = props;
 
-    const [input, setInput] = useState("");
 
-    function add() {
-        const name = input.trim();
-        if (!name) return;
-
-        setBodyBases((prev) => [...prev, { id: uid(), name }]);
-        setInput("");
-    }
 
     function remove(id: string) {
         setBodyBases((prev) => prev.filter((b) => b.id !== id));
@@ -105,40 +97,6 @@ export function SettingsModal(props: {
                             />
                         </label>
                     </div>
-                </div>
-
-                {/* 追加 */}
-                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                    <input
-                        placeholder="素体名を入力（例：マヌカ）"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && add()}
-                        style={{ flex: 1 }}
-                    />
-                    <button onClick={add}>＋</button>
-                </div>
-
-                {/* 一覧 */}
-                <div style={{ display: "grid", gap: 6 }}>
-                    {bodyBases.map((b) => (
-                        <div
-                            key={b.id}
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                border: "1px solid #ddd",
-                                padding: 8,
-                                borderRadius: 6,
-                            }}
-                        >
-                            <span>{b.name}</span>
-                            <button onClick={() => remove(b.id)}>×</button>
-                        </div>
-                    ))}
-                    {bodyBases.length === 0 && (
-                        <div style={{ opacity: 0.6 }}>まだ素体がありません</div>
-                    )}
                 </div>
             </div>
         </div>
