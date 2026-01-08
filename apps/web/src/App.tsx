@@ -24,6 +24,7 @@ import {
 import { uid, normalizeRank, getPerfRank, rankBadge } from "./utils";
 import { SettingsModal } from "./components/SettingsModal";
 import { BaseItem } from "./components/BaseItem";
+import { TagCloud } from "./components/TagCloud";
 
 const API = (window as any).VAM_API_URL || "http://localhost:8787";
 
@@ -73,7 +74,9 @@ export default function App() {
   const [favFolders, setFavFolders] = useState<FavFolder[]>([]);
   const [avatarFavMap, setAvatarFavMap] = useState<AvatarFavMap>({});
   const [filterFavId, setFilterFavId] = useState<string>("");
+
   const [avatarTags, setAvatarTags] = useState<AvatarTagMap>({});
+  const [filterTag, setFilterTag] = useState<string>("");
 
   // Load settings on mount
   useEffect(() => {
@@ -122,7 +125,12 @@ export default function App() {
       }
     }
 
-    // ④ 検索（アバター名 or 素体名 or お気に入り名）
+    // ④ タグフィルタ
+    if (filterTag) {
+      list = list.filter((a) => (avatarTags[a.id] || []).includes(filterTag));
+    }
+
+    // ⑤ 検索（アバター名 or 素体名 or お気に入り名）
     const q = query.trim();
     if (!q) return list;
 
@@ -143,7 +151,7 @@ export default function App() {
         : "";
       const favNameNorm = favName.normalize("NFKC").toLowerCase();
 
-      // タグ検索
+      // タグ検索 (テキスト)
       const tags = avatarTags[a.id] || [];
       const tagsHit = tags.some((t) =>
         t.normalize("NFKC").toLowerCase().includes(qNorm)
@@ -167,6 +175,7 @@ export default function App() {
     favFolders,
     avatarFavMap,
     avatarTags,
+    filterTag,
   ]);
   const baseCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -193,6 +202,17 @@ export default function App() {
 
     return { all: shownAvatars.length, none, byId: counts };
   }, [shownAvatars, avatarFavMap]);
+
+  const tagCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const a of shownAvatars) {
+      const tags = avatarTags[a.id] || [];
+      for (const t of tags) {
+        counts[t] = (counts[t] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [shownAvatars, avatarTags]);
 
   async function doLogin() {
     setError("");
@@ -753,6 +773,16 @@ export default function App() {
                     ))}
                   </div>
                 )}
+
+              </div>
+
+              {/* タグクラウド */}
+              <div className="sidebar-section">
+                <TagCloud
+                  tagCounts={tagCounts}
+                  activeTag={filterTag}
+                  onSelect={(tag) => setFilterTag(tag)}
+                />
               </div>
             </aside>
 

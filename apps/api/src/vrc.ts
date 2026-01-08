@@ -177,7 +177,7 @@ export async function vrcVerify2FA(sid: string, method: TwoFAMethod, code: strin
 
     const data = await readJsonSafe(res);
     if (!res.ok) {
-        logToFile(`[vrc] verify failed: ${JSON.stringify(data)}`);
+        logToFile(`[vrc] verify failed: status=${res.status}`);
         return { ok: false as const, status: res.status, body: data };
     }
 
@@ -191,7 +191,7 @@ export async function vrcVerify2FA(sid: string, method: TwoFAMethod, code: strin
 
     const me = await readJsonSafe(meRes);
     if (!meRes.ok) {
-        logToFile(`[vrc] me failed: ${JSON.stringify(me)}`);
+        logToFile(`[vrc] me failed: status=${meRes.status}`);
         return { ok: false as const, status: meRes.status, body: me };
     }
 

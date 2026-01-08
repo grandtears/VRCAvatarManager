@@ -70,6 +70,9 @@ coverage/
 # =========================
 apps/api/sessions.json
 apps/api/vrchat-session.json
+apps/api/settings.json
+vrc-avatar-manager-settings.json
+vrc-avatar-manager-secret.key
 
 # =========================
 # Temporary / Runtime

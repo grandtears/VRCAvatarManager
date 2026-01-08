@@ -336,7 +336,16 @@ if (WEB_DIR) {
     // Serve static files
     app.get("*", async (c) => {
         const urlPath = c.req.path === "/" ? "/index.html" : c.req.path;
+        // 安全なパス解決
+        const forbidden = urlPath.includes("..") || urlPath.includes(":");
+        if (forbidden) return c.notFound();
+
         const filePath = pathSync.join(WEB_DIR, urlPath);
+
+        // ディレクトリトラバーサル対策: 解決後のパスが WEB_DIR 内にあるか確認
+        if (!filePath.startsWith(WEB_DIR)) {
+            return c.notFound();
+        }
 
         try {
             const stat = fsSync.statSync(filePath);
@@ -372,5 +381,5 @@ if (WEB_DIR) {
 
 // 大事
 const port = Number(process.env.PORT || 8787);
-serve({ fetch: app.fetch, port, hostname: "localhost" });
+serve({ fetch: app.fetch, port, hostname: "127.0.0.1" });
 // touch

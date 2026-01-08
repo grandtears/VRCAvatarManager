@@ -1,0 +1,24 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0284c7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2563eb;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#bg)" />
+  
+  <!-- Icon Graphics -->
+  <g filter="url(#shadow)" fill="#fff">
+    <!-- Abstract Person / Avatar shape -->
+    <path d="M256 128c35.3 0 64 28.7 64 64s-28.7 64-64 64-64-28.7-64-64 28.7-64 64-64zm-112 234c0-68.4 56.6-122 122.7-109.9-4-8.8-10.7-16.1-10.7-18.1 0-14.7 28.7-14.7 28.7 0 0 2 6.7 9.3 10.7 18.1 66.1-12.1 122.7 41.5 122.7 109.9v14h-274v-14z"/>
+    
+    <!-- Abstract "Manager" / Checkmark / Circle elements could go here, but keeping it simple -->
+    <circle cx="360" cy="360" r="48" fill="#4ade80" />
+    <path d="M345 360l10 10 20-20" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+</svg>
