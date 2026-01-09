@@ -68,6 +68,21 @@ export function CreditModal({ isOpen, onClose }: CreditModalProps) {
                     </div>
                 </div>
 
+                <div style={{ margin: "16px 0", fontSize: "0.9rem", color: "#666" }}>
+                    <p style={{ margin: "0 0 8px" }}>
+                        ログイン情報を取り扱っているため、透明性の確保として<br />
+                        GitHubにてソースコードを公開しています。
+                    </p>
+                    <a
+                        href="https://github.com/grandtears/AvaClo-VRC-Avatar-Closet-"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "#333", textDecoration: "underline" }}
+                    >
+                        GitHub Repository
+                    </a>
+                </div>
+
                 <button
                     className="btn btn-secondary"
                     onClick={onClose}
